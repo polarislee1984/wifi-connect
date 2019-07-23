@@ -2,6 +2,9 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::fmt;
 use std::net::Ipv4Addr;
 use std::error::Error as StdError;
+use std::process::Command;
+use std::time::Duration;
+use std::thread;
 
 use serde_json;
 use path::PathBuf;
@@ -19,6 +22,7 @@ use params::{FromValue, Params};
 use errors::*;
 use network::{NetworkCommand, NetworkCommandResponse};
 use exit::{exit, ExitResult};
+use orientation::SetOrientation;
 
 struct RequestSharedState {
     gateway: Ipv4Addr,
@@ -206,31 +210,6 @@ fn connect(req: &mut Request) -> IronResult<Response> {
 
     debug!("Incoming `connect` to access point `{}` request", ssid);
 
-    //set device orientation
-    let mut file = File::open("/boot/config.txt")?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    if contents.find("display_rotate=") == None {
-        // add display_rotate
-        contents = format!("{}\n{}{}", contents, "display_rotate=", orientation);
-    } else {
-        // update display_rotate
-        let mut lines = contents.lines()
-        let mut newContents = String::new();
-        for lines {
-            let lineStr = format!("{}", line)
-            if lineStr.find("display_rotate=") != None {
-                lineStr = format!("{}{}", "display_rotate=", orientation);
-            }
-
-            newContents.push_str(&lineStr)
-        }
-        contents = newContents
-    }
-
-    //replace content
-    file.write_all(contents.as_bytes());
-
     let request_state = get_request_state!(req);
 
     let command = NetworkCommand::Connect {
@@ -238,10 +217,19 @@ fn connect(req: &mut Request) -> IronResult<Response> {
         identity: identity,
         passphrase: passphrase,
     };
-
+            
     if let Err(e) = request_state.network_tx.send(command) {
         exit_with_error(&request_state, e, ErrorKind::SendNetworkCommandConnect)
     } else {
+        SetOrientation(orientation);
+        //reboot system
+        thread::spawn(|| {
+            thread::sleep(Duration::from_millis(10));
+            Command::new("reboot")
+            .spawn()
+            .expect("failed to execute process");
+        });
+
         Ok(Response::with(status::Ok))
     }
 }
