@@ -195,15 +195,41 @@ fn networks(req: &mut Request) -> IronResult<Response> {
 }
 
 fn connect(req: &mut Request) -> IronResult<Response> {
-    let (ssid, identity, passphrase) = {
+    let (ssid, identity, passphrase, orientation) = {
         let params = get_request_ref!(req, Params, "Getting request params failed");
         let ssid = get_param!(params, "ssid", String);
         let identity = get_param!(params, "identity", String);
         let passphrase = get_param!(params, "passphrase", String);
-        (ssid, identity, passphrase)
+        let orientation = get_param!(params, "orientation", String);
+        (ssid, identity, passphrase, orientation)
     };
 
     debug!("Incoming `connect` to access point `{}` request", ssid);
+
+    //set device orientation
+    let mut file = File::open("/boot/config.txt")?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    if contents.find("display_rotate=") == None {
+        // add display_rotate
+        contents = format!("{}\n{}{}", contents, "display_rotate=", orientation);
+    } else {
+        // update display_rotate
+        let mut lines = contents.lines()
+        let mut newContents = String::new();
+        for lines {
+            let lineStr = format!("{}", line)
+            if lineStr.find("display_rotate=") != None {
+                lineStr = format!("{}{}", "display_rotate=", orientation);
+            }
+
+            newContents.push_str(&lineStr)
+        }
+        contents = newContents
+    }
+
+    //replace content
+    file.write_all(contents.as_bytes());
 
     let request_state = get_request_state!(req);
 
